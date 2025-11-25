@@ -1,12 +1,12 @@
 import tkinter as tk
-from tkinter import messagebox
+from tkinter import messagebox, ttk
 from PIL import Image, ImageTk
 import cv2
 import os
 import threading
 
 class ManagePersonsDialog:
-    """Dialog quản lý đối tượng"""
+    """Dialog quản lý đối tượng - Cải thiện với scrollbar"""
     def __init__(self, parent, face_service, db, main_app=None):
         self.parent = parent
         self.face_service = face_service
@@ -24,6 +24,19 @@ class ManagePersonsDialog:
         x = parent.winfo_x() + (parent.winfo_width() // 2) - 500
         y = parent.winfo_y() + (parent.winfo_height() // 2) - 350
         self.dialog.geometry(f"1000x700+{x}+{y}")
+        
+        # Style cho scrollbar
+        style = ttk.Style()
+        style.theme_use('clam')
+        style.configure("Custom.Vertical.TScrollbar", 
+                       gripcount=0,
+                       background="#7c5ceb",
+                       darkcolor="#5940c9",
+                       lightcolor="#9b7ef5",
+                       troughcolor="#f0f0f0",
+                       bordercolor="#7c5ceb",
+                       arrowcolor="white",
+                       width=12)
         
         self.selected_person = None
         self.setup_ui()
@@ -57,31 +70,40 @@ class ManagePersonsDialog:
         self.search_var = tk.StringVar()
         self.search_var.trace('w', lambda *args: self.load_persons())
         search_entry = tk.Entry(search_frame, textvariable=self.search_var, 
-                               font=("Arial", 11), relief='solid', bg='#f8f9fa', bd=1)
+                               font=("Arial", 11), relief='solid', bg='#f8f9fa', 
+                               bd=1, highlightthickness=0)
         search_entry.pack(fill='x', ipady=8)
         
-        # List frame
-        list_frame = tk.Frame(left_panel, bg='white')
-        list_frame.pack(fill='both', expand=True, padx=15, pady=(0, 15))
+        # List frame với scrollbar
+        list_container = tk.Frame(left_panel, bg='white')
+        list_container.pack(fill='both', expand=True, padx=15, pady=(0, 15))
         
         # Scrollbar
-        scrollbar = tk.Scrollbar(list_frame)
+        scrollbar = ttk.Scrollbar(list_container, style="Custom.Vertical.TScrollbar")
         scrollbar.pack(side='right', fill='y')
         
         # Listbox
-        self.listbox = tk.Listbox(list_frame, font=("Arial", 11), 
+        self.listbox = tk.Listbox(list_container, font=("Arial", 11), 
                                  bg='#f8f9fa', selectbackground='#7c5ceb',
-                                 yscrollcommand=scrollbar.set, relief='solid', bd=1)
+                                 selectforeground='white',
+                                 yscrollcommand=scrollbar.set, relief='solid', 
+                                 bd=1, highlightthickness=0,
+                                 activestyle='none')
         self.listbox.pack(fill='both', expand=True)
         self.listbox.bind('<<ListboxSelect>>', self.on_select_person)
         scrollbar.config(command=self.listbox.yview)
         
-        # RIGHT - Details
-        right_panel = tk.Frame(main_frame, bg='white')
-        right_panel.pack(side='right', fill='both', expand=True)
+        # Mouse wheel support
+        def _on_mousewheel(event):
+            self.listbox.yview_scroll(int(-1*(event.delta/120)), "units")
+        self.listbox.bind("<MouseWheel>", _on_mousewheel)
+        
+        # RIGHT - Details với scrollbar
+        right_panel_container = tk.Frame(main_frame, bg='white')
+        right_panel_container.pack(side='right', fill='both', expand=True)
         
         # Details header
-        details_header = tk.Frame(right_panel, bg='#7c5ceb', height=60)
+        details_header = tk.Frame(right_panel_container, bg='#7c5ceb', height=60)
         details_header.pack(fill='x')
         details_header.pack_propagate(False)
         
@@ -89,30 +111,63 @@ class ManagePersonsDialog:
                                      font=("Arial", 14, "bold"), bg='#7c5ceb', fg='white')
         self.details_title.pack(pady=18)
         
-        # Details content
-        self.details_frame = tk.Frame(right_panel, bg='white')
-        self.details_frame.pack(fill='both', expand=True, padx=30, pady=20)
+        # Scrollable details content
+        details_scroll_container = tk.Frame(right_panel_container, bg='white')
+        details_scroll_container.pack(fill='both', expand=True)
         
-        # Buttons frame
-        buttons_frame = tk.Frame(right_panel, bg='white')
-        buttons_frame.pack(fill='x', padx=30, pady=(0, 20))
+        canvas = tk.Canvas(details_scroll_container, bg='white', 
+                          highlightthickness=0, bd=0)
+        details_scrollbar = ttk.Scrollbar(details_scroll_container, orient="vertical", 
+                                         command=canvas.yview,
+                                         style="Custom.Vertical.TScrollbar")
         
-        self.btn_edit = tk.Button(buttons_frame, text="✏️ SỬA", 
+        self.details_frame = tk.Frame(canvas, bg='white')
+        self.details_frame.bind(
+            "<Configure>",
+            lambda e: canvas.configure(scrollregion=canvas.bbox("all"))
+        )
+        
+        canvas_frame = canvas.create_window((0, 0), window=self.details_frame, 
+                                           anchor="nw", width=530)
+        canvas.configure(yscrollcommand=details_scrollbar.set)
+        
+        # Pack scrollbar and canvas
+        details_scrollbar.pack(side="right", fill="y")
+        canvas.pack(side="left", fill="both", expand=True)
+        
+        # Mouse wheel for details
+        def _on_details_mousewheel(event):
+            canvas.yview_scroll(int(-1*(event.delta/120)), "units")
+        canvas.bind("<MouseWheel>", _on_details_mousewheel)
+        self.details_frame.bind("<MouseWheel>", _on_details_mousewheel)
+        
+        # Buttons frame (fixed at bottom)
+        buttons_frame = tk.Frame(right_panel_container, bg='white', height=70)
+        buttons_frame.pack(fill='x', side='bottom')
+        buttons_frame.pack_propagate(False)
+        
+        btn_container = tk.Frame(buttons_frame, bg='white')
+        btn_container.pack(pady=15, padx=30)
+        
+        self.btn_edit = tk.Button(btn_container, text="✏️ SỬA", 
                                  font=("Arial", 11, "bold"), bg='#3498db', fg='white',
                                  relief='flat', cursor='hand2', command=self.edit_person,
-                                 activebackground='#2980b9', state='disabled')
+                                 activebackground='#2980b9', state='disabled',
+                                 borderwidth=0, highlightthickness=0)
         self.btn_edit.pack(side='left', padx=(0, 10), ipadx=15, ipady=10)
         
-        self.btn_delete = tk.Button(buttons_frame, text="🗑️ XÓA", 
+        self.btn_delete = tk.Button(btn_container, text="🗑️ XÓA", 
                                     font=("Arial", 11, "bold"), bg='#e74c3c', fg='white',
                                     relief='flat', cursor='hand2', command=self.delete_person,
-                                    activebackground='#c0392b', state='disabled')
+                                    activebackground='#c0392b', state='disabled',
+                                    borderwidth=0, highlightthickness=0)
         self.btn_delete.pack(side='left', padx=(0, 10), ipadx=15, ipady=10)
         
-        self.btn_refresh = tk.Button(buttons_frame, text="🔄 LÀM MỚI", 
+        self.btn_refresh = tk.Button(btn_container, text="🔄 LÀM MỚI", 
                                      font=("Arial", 11, "bold"), bg='#95a5a6', fg='white',
                                      relief='flat', cursor='hand2', command=self.load_persons,
-                                     activebackground='#7f8c8d')
+                                     activebackground='#7f8c8d',
+                                     borderwidth=0, highlightthickness=0)
         self.btn_refresh.pack(side='right', ipadx=15, ipady=10)
         
         self.show_empty_state()
@@ -153,8 +208,14 @@ class ManagePersonsDialog:
         for widget in self.details_frame.winfo_children():
             widget.destroy()
         
-        tk.Label(self.details_frame, text="Chọn một đối tượng để xem chi tiết", 
-                font=("Arial", 12), bg='white', fg='#999').pack(pady=50)
+        empty_container = tk.Frame(self.details_frame, bg='white')
+        empty_container.pack(expand=True, fill='both', pady=100)
+        
+        tk.Label(empty_container, text="👤", font=("Arial", 60), 
+                bg='white', fg='#e0e0e0').pack()
+        tk.Label(empty_container, text="Chọn một đối tượng để xem chi tiết", 
+                font=("Arial", 12), bg='white', fg='#999').pack(pady=10)
+        
         self.selected_person = None
         self.btn_edit.config(state='disabled')
         self.btn_delete.config(state='disabled')
@@ -164,14 +225,24 @@ class ManagePersonsDialog:
         for widget in self.details_frame.winfo_children():
             widget.destroy()
         
-        # Photo
-        photo_frame = tk.Frame(self.details_frame, bg='white')
-        photo_frame.pack(pady=(0, 20))
+        content = tk.Frame(self.details_frame, bg='white')
+        content.pack(fill='both', expand=True, padx=30, pady=20)
+        
+        # Photo với shadow
+        photo_container = tk.Frame(content, bg='white')
+        photo_container.pack(pady=(0, 20))
+        
+        photo_outer = tk.Frame(photo_container, bg='#e0e0e0', padx=2, pady=2)
+        photo_outer.pack()
+        
+        photo_frame = tk.Frame(photo_outer, bg='#f0f0f0', width=240, height=300)
+        photo_frame.pack()
+        photo_frame.pack_propagate(False)
         
         images = self.db.get_person_images(person['id'])
-        photo_label = tk.Label(photo_frame, bg='#e0e0e0', text="Không có ảnh", 
-                              font=("Arial", 11), fg='#999', width=30, height=12)
-        photo_label.pack()
+        photo_label = tk.Label(photo_frame, bg='#f8f9fa', text="Không có ảnh", 
+                              font=("Arial", 11), fg='#999')
+        photo_label.pack(fill='both', expand=True)
         
         if images and len(images) > 0:
             try:
@@ -187,9 +258,9 @@ class ManagePersonsDialog:
             except Exception as e:
                 print(f"[LỖI] Load ảnh: {e}")
         
-        # Info fields
-        info_frame = tk.Frame(self.details_frame, bg='white')
-        info_frame.pack(fill='x')
+        # Info fields với styling
+        info_frame = tk.Frame(content, bg='white')
+        info_frame.pack(fill='x', pady=(20, 0))
         
         fields = [
             ("Họ và tên", person.get('full_name') or 'Chưa có'),
@@ -203,13 +274,17 @@ class ManagePersonsDialog:
         ]
         
         for label, value in fields:
-            field_frame = tk.Frame(info_frame, bg='white')
-            field_frame.pack(fill='x', pady=8)
+            field_container = tk.Frame(info_frame, bg='#f8f9fa', pady=12, padx=15)
+            field_container.pack(fill='x', pady=3)
             
-            tk.Label(field_frame, text=f"{label}:", font=("Arial", 10, "bold"), 
-                    bg='white', fg='#555', width=15, anchor='w').pack(side='left')
-            tk.Label(field_frame, text=str(value), font=("Arial", 10), 
-                    bg='white', fg='#2c3e50', anchor='w').pack(side='left', fill='x', expand=True)
+            label_frame = tk.Frame(field_container, bg='#f8f9fa')
+            label_frame.pack(fill='x')
+            
+            tk.Label(label_frame, text=f"{label}:", font=("Arial", 10, "bold"), 
+                    bg='#f8f9fa', fg='#555', width=15, anchor='w').pack(side='left')
+            tk.Label(label_frame, text=str(value), font=("Arial", 10), 
+                    bg='#f8f9fa', fg='#2c3e50', anchor='w', 
+                    wraplength=350).pack(side='left', fill='x', expand=True, padx=(10, 0))
     
     def edit_person(self):
         """Sửa thông tin người"""
@@ -220,7 +295,7 @@ class ManagePersonsDialog:
         EditPersonDialog(self.dialog, self.selected_person, self.db, self)
     
     def delete_person(self):
-        """Xóa người - SỬA LẠI"""
+        """Xóa người"""
         if not self.selected_person:
             return
         
@@ -237,19 +312,15 @@ class ManagePersonsDialog:
         if result:
             def run_delete():
                 try:
-                    # Xóa trong database
                     db_success = self.db.delete_person(self.selected_person['id'])
-                    # Xóa thư mục ảnh và embeddings
                     data_success = self.face_service.delete_person_data(name)
                     
                     if db_success and data_success:
                         self.dialog.after(0, lambda: messagebox.showinfo(
                             "Thành công", f"Đã xóa đối tượng '{name}'", parent=self.dialog))
                         
-                        # QUAN TRỌNG: Đánh dấu cần reload embeddings
                         if self.main_app:
                             self.dialog.after(0, lambda: self.update_main_app())
-                            # THÊM: Đánh dấu cần reload embeddings ngay lập tức
                             self.main_app.need_reload_embeddings = True
                         
                         self.dialog.after(0, self.load_persons)
@@ -273,5 +344,4 @@ class ManagePersonsDialog:
         if self.main_app:
             total_persons = len(self.db.get_all_persons())
             self.main_app.counter_label.config(text=str(total_persons))
-            # Đánh dấu cần reload embeddings
             self.main_app.need_reload_embeddings = True

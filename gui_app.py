@@ -1,5 +1,5 @@
 import tkinter as tk
-from tkinter import messagebox
+from tkinter import messagebox, ttk
 from PIL import Image, ImageTk, ImageDraw
 import cv2
 import numpy as np
@@ -12,7 +12,7 @@ from dialogs.add_person_dialog import AddPersonDialog
 from dialogs.manage_persons_dialog import ManagePersonsDialog
 
 class AttendanceRecognitionUI:
-    """Giao diện Attendance System"""
+    """Giao diện Attendance System - Cải thiện"""
     def __init__(self, root):
         self.root = root
         self.root.title("Face Attendance System")
@@ -26,10 +26,11 @@ class AttendanceRecognitionUI:
         self.is_camera_running = False
         self.current_person = None
         self.last_recognition_time = None
-        self.recognition_cooldown = 3
+        self.recognition_cooldown = 30  # 30 giây
         self.need_reload_embeddings = False
         self.embeddings = []
         self.is_camera_paused = False
+        self.recognized_person = None  # Lưu người đã nhận diện
         
         self.setup_ui()
         self.start_recognition()
@@ -61,99 +62,93 @@ class AttendanceRecognitionUI:
         btn_admin = tk.Button(header_frame, text="⚙️ ADMIN", 
                              font=("Arial", 11, "bold"), bg='#e74c3c', fg='white',
                              relief='flat', cursor='hand2', command=self.show_admin_login,
-                             activebackground='#c0392b')
+                             activebackground='#c0392b', borderwidth=0,
+                             highlightthickness=0)
         btn_admin.pack(side='right', padx=20, ipadx=15, ipady=8)
         
         # Camera Frame
         camera_container = tk.Frame(left_panel, bg='#5940c9', padx=15, pady=15)
         camera_container.pack(fill='both', expand=True)
         
-        self.canvas_camera = tk.Canvas(camera_container, bg='black', highlightthickness=0)
+        self.canvas_camera = tk.Canvas(camera_container, bg='black', 
+                                      highlightthickness=0, bd=0)
         self.canvas_camera.pack(fill='both', expand=True)
         
-        # RIGHT PANEL - Student Info
+        # RIGHT PANEL - Student Info (KHÔNG CẦN SCROLLBAR)
         right_panel = tk.Frame(main_container, bg='white', width=450, 
                               highlightbackground='#d0d0d0', highlightthickness=2)
-        right_panel.pack(side='right', fill='y')
+        right_panel.pack(side='right', fill='both')
         right_panel.pack_propagate(False)
         
-        # Attendance counter
-        counter_frame = tk.Frame(right_panel, bg='#7c5ceb', height=80)
-        counter_frame.pack(fill='x', pady=20, padx=20)
-        
-        counter_icon = tk.Label(counter_frame, text="📊", font=("Arial", 24),
-                               bg='#7c5ceb', fg='white')
-        counter_icon.pack(side='left', padx=(20, 10))
-        
-        total_persons = len(self.db.get_all_persons())
-        self.counter_label = tk.Label(counter_frame, text=str(total_persons), 
-                                     font=("Arial", 36, "bold"), bg='#7c5ceb', fg='white')
-        self.counter_label.pack(side='left')
-        
-        # Student Info Card
+        # Info Card - Hiển thị thông tin chính
         self.info_card = tk.Frame(right_panel, bg='white')
-        self.info_card.pack(fill='both', expand=True, padx=30, pady=20)
+        self.info_card.pack(fill='both', expand=True, padx=30, pady=30)
         
-        # Photo Frame
-        self.photo_frame = tk.Frame(self.info_card, bg='#7c5ceb', 
-                                   width=280, height=320, 
-                                   highlightbackground='#7c5ceb', highlightthickness=8)
-        self.photo_frame.pack(pady=(20, 15))
-        self.photo_frame.pack_propagate(False)
+        # Icon trạng thái - TO HƠN
+        self.status_icon_label = tk.Label(self.info_card, text="👤", 
+                                         font=("Arial", 80), bg='white', fg='#e0e0e0')
+        self.status_icon_label.pack(pady=(30, 20))
         
-        self.photo_label = tk.Label(self.photo_frame, bg='#e0e0e0', 
-                                   text="Waiting...", font=("Arial", 14), fg='#999999')
-        self.photo_label.pack(fill='both', expand=True)
+        # Name - TO HƠN
+        self.name_label = tk.Label(self.info_card, text="Chờ nhận diện...", 
+                                  font=("Arial", 26, "bold"), bg='white', fg='#2c3e50',
+                                  wraplength=400)
+        self.name_label.pack(pady=(0, 25))
         
-        # Name
-        self.name_label = tk.Label(self.info_card, text="Unknown Person", 
-                                  font=("Arial", 22, "bold"), bg='white', fg='#2c3e50')
-        self.name_label.pack(pady=(10, 5))
-        
-        # Info badges
+        # Info badges container
         badges_container = tk.Frame(self.info_card, bg='white')
-        badges_container.pack(pady=10)
+        badges_container.pack(pady=10, fill='x')
         
-        self.id_badge = tk.Frame(badges_container, bg='#c4b5fd', height=40, padx=20, pady=8)
-        self.id_badge.pack(fill='x', pady=5)
-        self.id_label = tk.Label(self.id_badge, text="Mã NV: ------", 
-                               font=("Arial", 11, "bold"), bg='#c4b5fd', fg='#5940c9')
-        self.id_label.pack()
+        # Mã NV
+        self.id_badge = tk.Frame(badges_container, bg='#c4b5fd', 
+                                height=50, padx=25, pady=12)
+        self.id_badge.pack(fill='x', pady=8)
         
-        self.dept_badge = tk.Frame(badges_container, bg='#c4b5fd', height=40, padx=20, pady=8)
-        self.dept_badge.pack(fill='x', pady=5)
-        self.dept_label = tk.Label(self.dept_badge, text="Phòng ban: ------", 
-                                   font=("Arial", 11, "bold"), bg='#c4b5fd', fg='#5940c9')
-        self.dept_label.pack()
+        id_content = tk.Frame(self.id_badge, bg='#c4b5fd')
+        id_content.pack()
         
-        self.pos_badge = tk.Frame(badges_container, bg='#c4b5fd', height=40, padx=20, pady=8)
-        self.pos_badge.pack(fill='x', pady=5)
-        self.pos_label = tk.Label(self.pos_badge, text="Chức vụ: ------", 
-                                   font=("Arial", 11, "bold"), bg='#c4b5fd', fg='#5940c9')
-        self.pos_label.pack()
+        tk.Label(id_content, text="🆔", font=("Arial", 20), 
+                bg='#c4b5fd').pack(side='left', padx=(0, 10))
+        self.id_label = tk.Label(id_content, text="Mã: ------", 
+                               font=("Arial", 14, "bold"), bg='#c4b5fd', 
+                               fg='#5940c9', wraplength=350)
+        self.id_label.pack(side='left')
         
-        # Bottom info
-        bottom_info = tk.Frame(self.info_card, bg='white')
-        bottom_info.pack(pady=20)
+        # Phòng ban
+        self.dept_badge = tk.Frame(badges_container, bg='#c4b5fd', 
+                                  height=50, padx=25, pady=12)
+        self.dept_badge.pack(fill='x', pady=8)
         
-        email_frame = tk.Frame(bottom_info, bg='white')
-        email_frame.pack(side='left', padx=15)
-        tk.Label(email_frame, text="📧", font=("Arial", 20), bg='white').pack(side='left')
-        self.email_label = tk.Label(email_frame, text="--", font=("Arial", 10),
-                                    bg='white', fg='#666')
-        self.email_label.pack(side='left', padx=5)
+        dept_content = tk.Frame(self.dept_badge, bg='#c4b5fd')
+        dept_content.pack()
         
-        phone_frame = tk.Frame(bottom_info, bg='white')
-        phone_frame.pack(side='left', padx=15)
-        tk.Label(phone_frame, text="📱", font=("Arial", 20), bg='white').pack(side='left')
-        self.phone_label = tk.Label(phone_frame, text="--", font=("Arial", 10),
-                                      bg='white', fg='#666')
-        self.phone_label.pack(side='left', padx=5)
+        tk.Label(dept_content, text="🏢", font=("Arial", 20), 
+                bg='#c4b5fd').pack(side='left', padx=(0, 10))
+        self.dept_label = tk.Label(dept_content, text="Phòng: ------", 
+                                   font=("Arial", 14, "bold"), bg='#c4b5fd', 
+                                   fg='#5940c9', wraplength=350)
+        self.dept_label.pack(side='left')
         
-        # Status
-        self.status_label = tk.Label(right_panel, text="", 
-                                    font=("Arial", 11, "bold"), bg='white', fg='#27ae60')
-        self.status_label.pack(side='bottom', pady=20)
+        # Confidence
+        self.conf_badge = tk.Frame(badges_container, bg='#e8f5e9', 
+                                  height=50, padx=25, pady=12)
+        self.conf_badge.pack(fill='x', pady=8)
+        
+        conf_content = tk.Frame(self.conf_badge, bg='#e8f5e9')
+        conf_content.pack()
+        
+        tk.Label(conf_content, text="📊", font=("Arial", 20), 
+                bg='#e8f5e9').pack(side='left', padx=(0, 10))
+        self.conf_label = tk.Label(conf_content, text="Độ chính xác: ---%", 
+                                   font=("Arial", 14, "bold"), bg='#e8f5e9', 
+                                   fg='#27ae60', wraplength=350)
+        self.conf_label.pack(side='left')
+        
+        # Status message - TO HƠN
+        self.status_label = tk.Label(self.info_card, text="", 
+                                    font=("Arial", 13, "bold"), bg='white', 
+                                    fg='#999', wraplength=400)
+        self.status_label.pack(pady=(30, 0))
     
     def show_admin_login(self):
         """Hiển thị dialog đăng nhập admin"""
@@ -202,7 +197,8 @@ class AttendanceRecognitionUI:
         for text, color, command in buttons:
             btn = tk.Button(menu_frame, text=text, font=("Arial", 12, "bold"),
                            bg=color, fg='white', relief='flat', cursor='hand2',
-                           command=command, activebackground=color)
+                           command=command, activebackground=color,
+                           borderwidth=0, highlightthickness=0)
             btn.pack(fill='x', pady=8, ipady=12)
     
     def add_person_action(self):
@@ -210,10 +206,6 @@ class AttendanceRecognitionUI:
         self.pause_camera()
         
         def on_success():
-            # Cập nhật counter
-            total_persons = len(self.db.get_all_persons())
-            self.counter_label.config(text=str(total_persons))
-            # Đánh dấu cần reload embeddings
             self.need_reload_embeddings = True
         
         dialog = AddPersonDialog(self.root, self.face_service, self.db, on_success)
@@ -307,7 +299,7 @@ class AttendanceRecognitionUI:
         print("[INFO] Camera màn hình chính đã hoạt động trở lại")
     
     def recognition_loop(self):
-        """Vòng lặp nhận diện - SỬA LẠI"""
+        """Vòng lặp nhận diện"""
         if self.cap is None or not self.cap.isOpened():
             self.cap = cv2.VideoCapture(0)
         
@@ -316,7 +308,6 @@ class AttendanceRecognitionUI:
         last_results = []
         
         while self.is_camera_running:
-            # NẾU CAMERA BỊ PAUSE - CHỜ VÀ BỎ QUA
             if self.is_camera_paused:
                 import time
                 time.sleep(0.1)
@@ -324,7 +315,6 @@ class AttendanceRecognitionUI:
                 last_results = []
                 continue
             
-            # QUAN TRỌNG: Kiểm tra và reload embeddings nếu cần
             if self.need_reload_embeddings:
                 print("[INFO] Phát hiện cần reload embeddings...")
                 self.need_reload_embeddings = False
@@ -341,17 +331,14 @@ class AttendanceRecognitionUI:
                         import traceback
                         traceback.print_exc()
                 
-                # Chạy trong thread riêng để không block recognition loop
                 threading.Thread(target=reload_embeddings_thread, daemon=True).start()
             
-            # Kiểm tra camera có tồn tại và đang mở không
             if self.cap is None or not self.cap.isOpened():
                 print("[CẢNH BÁO] Camera không khả dụng, chờ...")
                 import time
                 time.sleep(0.5)
                 continue
             
-            # Đọc frame
             try:
                 ret, frame = self.cap.read()
                 if not ret:
@@ -365,13 +352,21 @@ class AttendanceRecognitionUI:
                 time.sleep(0.1)
                 continue
             
-            # Xử lý frame
             try:
                 frame_count += 1
                 frame_rgb = cv2.cvtColor(frame, cv2.COLOR_BGR2RGB)
                 
                 gray = cv2.cvtColor(frame, cv2.COLOR_BGR2GRAY)
                 faces = self.face_service.face_cascade.detectMultiScale(gray, 1.3, 5)
+                
+                # Kiểm tra nếu không có khuôn mặt nào
+                if len(faces) == 0 and self.recognized_person is not None:
+                    # Kiểm tra xem đã quá 30 giây chưa
+                    current_time = datetime.now()
+                    if self.last_recognition_time and \
+                       (current_time - self.last_recognition_time).total_seconds() > self.recognition_cooldown:
+                        # Reset về trạng thái chờ
+                        self.reset_to_waiting_state()
                 
                 if frame_count % 10 == 0 and len(self.embeddings) > 0:
                     last_results = []
@@ -402,15 +397,26 @@ class AttendanceRecognitionUI:
                                 
                                 if identity != "Unknown" and confidence > 0.6:
                                     current_time = datetime.now()
-                                    if (self.last_recognition_time is None or 
-                                        (current_time - self.last_recognition_time).total_seconds() > self.recognition_cooldown):
+                                    
+                                    # Nếu đã có người được nhận diện và vẫn trong thời gian cooldown
+                                    if self.recognized_person is not None:
+                                        if identity == self.recognized_person['name']:
+                                            # Cùng người, chỉ cập nhật status
+                                            self.update_recognized_status()
+                                        else:
+                                            # Người khác, kiểm tra cooldown
+                                            if (self.last_recognition_time is None or 
+                                                (current_time - self.last_recognition_time).total_seconds() > self.recognition_cooldown):
+                                                self.update_student_info(identity, confidence, face_img)
+                                                self.last_recognition_time = current_time
+                                    else:
+                                        # Chưa có ai được nhận diện
                                         self.update_student_info(identity, confidence, face_img)
                                         self.last_recognition_time = current_time
                     
                     except Exception as e:
                         print(f"[LỖI] DeepFace recognition: {e}")
                 
-                # Vẽ frame
                 pil_image = Image.fromarray(frame_rgb)
                 draw = ImageDraw.Draw(pil_image)
                 
@@ -443,7 +449,6 @@ class AttendanceRecognitionUI:
                         draw.line([(x+w, y+h), (x+w - corner_length, y+h)], fill=color, width=thickness)
                         draw.line([(x+w, y+h), (x+w, y+h - corner_length)], fill=color, width=thickness)
                 
-                # Hiển thị lên canvas
                 try:
                     if not self.canvas_camera.winfo_exists():
                         break
@@ -462,7 +467,6 @@ class AttendanceRecognitionUI:
             except Exception as e:
                 print(f"[LỖI] recognition_loop: {e}")
             
-            # Update UI
             try:
                 if self.root.winfo_exists():
                     self.root.update_idletasks()
@@ -472,6 +476,23 @@ class AttendanceRecognitionUI:
             import time
             time.sleep(0.03)
     
+    def reset_to_waiting_state(self):
+        """Reset về trạng thái chờ"""
+        self.recognized_person = None
+        self.status_icon_label.config(text="👤", fg='#e0e0e0')
+        self.name_label.config(text="Chờ nhận diện...", fg='#2c3e50')
+        self.id_label.config(text="Mã: ------")
+        self.dept_label.config(text="Phòng: ------")
+        self.conf_label.config(text="Độ chính xác: ---%")
+        self.status_label.config(text="", fg='#999')
+    
+    def update_recognized_status(self):
+        """Cập nhật trạng thái đã nhận diện"""
+        self.status_label.config(
+            text="✓ Đã nhận diện - Vẫn trong khung hình",
+            fg='#27ae60'
+        )
+    
     def update_student_info(self, identity, confidence, face_img):
         """Cập nhật thông tin sinh viên"""
         try:
@@ -479,43 +500,32 @@ class AttendanceRecognitionUI:
             person = next((p for p in persons if p['full_name'] == identity), None)
             
             if person:
-                # Hiển thị icon check màu xanh thay vì ảnh mặt
-                self.photo_label.config(
-                    image='',
-                    text="✓",
-                    font=("Arial", 120, "bold"),
-                    fg='#27ae60',
-                    bg='#e8f5e9'
-                )
+                # Lưu người đã nhận diện
+                self.recognized_person = {
+                    'name': identity,
+                    'person_id': person['id']
+                }
+                
+                # Icon check màu xanh
+                self.status_icon_label.config(text="✓", fg='#27ae60')
                 
                 # Cập nhật tên
-                self.name_label.config(text=identity)
+                self.name_label.config(text=identity, fg='#27ae60')
                 
                 # Cập nhật Mã nhân viên
                 emp_id = person.get('employee_id') or 'Chưa cập nhật'
-                self.id_label.config(text=f"Mã NV: {emp_id}")
+                self.id_label.config(text=f"Mã: {emp_id}")
                 
                 # Cập nhật Phòng ban
                 dept = person.get('department') or 'Chưa cập nhật'
-                self.dept_label.config(text=f"Phòng ban: {dept}")
+                self.dept_label.config(text=f"Phòng: {dept}")
                 
-                # Cập nhật Chức vụ
-                position = person.get('position') or 'Chưa cập nhật'
-                self.pos_label.config(text=f"Chức vụ: {position}")
-                
-                # Cập nhật Email
-                email = person.get('email') or 'Chưa có'
-                if len(email) > 20:
-                    email = email[:18] + '...'
-                self.email_label.config(text=email)
-                
-                # Cập nhật Phone
-                phone = person.get('phone') or 'Chưa có'
-                self.phone_label.config(text=phone)
+                # Cập nhật Confidence
+                self.conf_label.config(text=f"Độ chính xác: {confidence*100:.1f}%")
                 
                 # Hiển thị thông báo xác nhận
                 self.status_label.config(
-                    text=f"✓ Verified - Confidence: {confidence*100:.1f}%",
+                    text=f"✓ Đã xác nhận nhận diện thành công!",
                     fg='#27ae60'
                 )
                 
