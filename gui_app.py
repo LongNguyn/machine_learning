@@ -12,7 +12,7 @@ from dialogs.add_person_dialog import AddPersonDialog
 from dialogs.manage_persons_dialog import ManagePersonsDialog
 
 class AttendanceRecognitionUI:
-    """Giao diện Attendance System - Cải thiện"""
+    """Giao diện Attendance System - Đã sửa lỗi Admin Panel"""
     def __init__(self, root):
         self.root = root
         self.root.title("Face Attendance System")
@@ -26,11 +26,11 @@ class AttendanceRecognitionUI:
         self.is_camera_running = False
         self.current_person = None
         self.last_recognition_time = None
-        self.recognition_cooldown = 30  # 30 giây
+        self.recognition_cooldown = 30
         self.need_reload_embeddings = False
         self.embeddings = []
         self.is_camera_paused = False
-        self.recognized_person = None  # Lưu người đã nhận diện
+        self.recognized_person = None
         
         self.setup_ui()
         self.start_recognition()
@@ -74,22 +74,22 @@ class AttendanceRecognitionUI:
                                       highlightthickness=0, bd=0)
         self.canvas_camera.pack(fill='both', expand=True)
         
-        # RIGHT PANEL - Student Info (KHÔNG CẦN SCROLLBAR)
+        # RIGHT PANEL - Student Info
         right_panel = tk.Frame(main_container, bg='white', width=450, 
                               highlightbackground='#d0d0d0', highlightthickness=2)
         right_panel.pack(side='right', fill='both')
         right_panel.pack_propagate(False)
         
-        # Info Card - Hiển thị thông tin chính
+        # Info Card
         self.info_card = tk.Frame(right_panel, bg='white')
         self.info_card.pack(fill='both', expand=True, padx=30, pady=30)
         
-        # Icon trạng thái - TO HƠN
+        # Icon trạng thái
         self.status_icon_label = tk.Label(self.info_card, text="👤", 
                                          font=("Arial", 80), bg='white', fg='#e0e0e0')
         self.status_icon_label.pack(pady=(30, 20))
         
-        # Name - TO HƠN
+        # Name
         self.name_label = tk.Label(self.info_card, text="Chờ nhận diện...", 
                                   font=("Arial", 26, "bold"), bg='white', fg='#2c3e50',
                                   wraplength=400)
@@ -144,7 +144,7 @@ class AttendanceRecognitionUI:
                                    fg='#27ae60', wraplength=350)
         self.conf_label.pack(side='left')
         
-        # Status message - TO HƠN
+        # Status message
         self.status_label = tk.Label(self.info_card, text="", 
                                     font=("Arial", 13, "bold"), bg='white', 
                                     fg='#999', wraplength=400)
@@ -158,48 +158,82 @@ class AttendanceRecognitionUI:
         LoginDialog(self.root, on_login_success)
     
     def show_admin_menu(self, user_info):
-        """Hiển thị menu admin"""
+        """Hiển thị menu admin - ĐÃ SỬA LỖI HIỂN THỊ"""
         menu = tk.Toplevel(self.root)
         menu.title(f"Admin Panel - {user_info['full_name']}")
-        menu.geometry("400x500")
+        menu.geometry("450x600")
         menu.configure(bg='#ecf0f1')
         menu.transient(self.root)
+        menu.resizable(False, False)
         
-        # Center
+        # Center window
         menu.update_idletasks()
-        x = self.root.winfo_x() + (self.root.winfo_width() // 2) - 200
-        y = self.root.winfo_y() + (self.root.winfo_height() // 2) - 250
-        menu.geometry(f"400x500+{x}+{y}")
+        x = self.root.winfo_x() + (self.root.winfo_width() // 2) - 225
+        y = self.root.winfo_y() + (self.root.winfo_height() // 2) - 300
+        menu.geometry(f"450x600+{x}+{y}")
         
-        # Header
-        header = tk.Frame(menu, bg='#7c5ceb', height=100)
+        # Header với icon và text
+        header = tk.Frame(menu, bg='#7c5ceb')
         header.pack(fill='x')
-        header.pack_propagate(False)
         
-        tk.Label(header, text="⚙️", font=("Arial", 40), bg='#7c5ceb', fg='white').pack(pady=(20, 5))
-        tk.Label(header, text="ADMIN PANEL", font=("Arial", 18, "bold"), 
+        # Icon container
+        icon_frame = tk.Frame(header, bg='#7c5ceb')
+        icon_frame.pack(pady=(30, 10))
+        
+        tk.Label(icon_frame, text="⚙️", font=("Arial", 50), 
                 bg='#7c5ceb', fg='white').pack()
-        tk.Label(header, text=f"Xin chào, {user_info['full_name']}", 
-                font=("Arial", 10), bg='#7c5ceb', fg='#e0d4ff').pack(pady=(5, 0))
         
-        # Menu buttons
+        # Title
+        tk.Label(header, text="ADMIN PANEL", font=("Arial", 20, "bold"), 
+                bg='#7c5ceb', fg='white').pack(pady=(5, 10))
+        
+        # Menu buttons container
         menu_frame = tk.Frame(menu, bg='#ecf0f1')
-        menu_frame.pack(fill='both', expand=True, padx=30, pady=30)
+        menu_frame.pack(fill='both', expand=True, padx=40, pady=30)
         
+        # Buttons với icon và màu sắc
         buttons = [
             ("➕ Thêm người mới", '#27ae60', self.add_person_action),
             ("📋 Quản lý đối tượng", '#3498db', self.manage_persons_action),
-            ("📊 Xem thống kê", '#f39c12', lambda: messagebox.showinfo("Thông báo", "Tính năng đang phát triển")),
+            ("📊 Xem thống kê", '#f39c12', lambda: messagebox.showinfo(
+                "Thông báo", "Tính năng đang phát triển", parent=menu)),
             ("🔄 Tạo Embeddings", '#9b59b6', self.generate_embeddings_action),
             ("🚪 Đóng", '#95a5a6', menu.destroy),
         ]
         
         for text, color, command in buttons:
-            btn = tk.Button(menu_frame, text=text, font=("Arial", 12, "bold"),
+            # Button container
+            btn_container = tk.Frame(menu_frame, bg='#ecf0f1')
+            btn_container.pack(fill='x', pady=8)
+            
+            btn = tk.Button(btn_container, text=text, font=("Arial", 12, "bold"),
                            bg=color, fg='white', relief='flat', cursor='hand2',
                            command=command, activebackground=color,
                            borderwidth=0, highlightthickness=0)
-            btn.pack(fill='x', pady=8, ipady=12)
+            btn.pack(fill='x', ipady=15)
+            
+            # Hover effect
+            def make_hover(btn, normal_color):
+                def on_enter(e):
+                    rgb = btn.winfo_rgb(normal_color)
+                    dark = '#%02x%02x%02x' % tuple(int(c * 0.8 / 256) for c in rgb)
+                    btn.config(bg=dark)
+                
+                def on_leave(e):
+                    btn.config(bg=normal_color)
+                
+                btn.bind('<Enter>', on_enter)
+                btn.bind('<Leave>', on_leave)
+            
+            make_hover(btn, color)
+        
+        # Footer
+        footer = tk.Frame(menu, bg='#ecf0f1', height=40)
+        footer.pack(fill='x', side='bottom')
+        footer.pack_propagate(False)
+        
+        tk.Label(footer, text="Face Attendance System v1.0", 
+                font=("Arial", 9), bg='#ecf0f1', fg='#7f8c8d').pack(pady=10)
     
     def add_person_action(self):
         """Mở dialog thêm người"""
@@ -243,7 +277,7 @@ class AttendanceRecognitionUI:
         threading.Thread(target=self.recognition_loop, daemon=True).start()
     
     def pause_camera(self):
-        """Tạm dừng camera của màn hình chính"""
+        """Tạm dừng camera"""
         print("[INFO] Yêu cầu tạm dừng camera...")
         self.is_camera_paused = True
         
@@ -263,7 +297,7 @@ class AttendanceRecognitionUI:
         print("[INFO] Camera màn hình chính đã tạm dừng hoàn toàn")
     
     def resume_camera(self):
-        """Tiếp tục camera của màn hình chính"""
+        """Tiếp tục camera"""
         print("[INFO] Yêu cầu khôi phục camera...")
         
         max_retries = 5
@@ -359,13 +393,10 @@ class AttendanceRecognitionUI:
                 gray = cv2.cvtColor(frame, cv2.COLOR_BGR2GRAY)
                 faces = self.face_service.face_cascade.detectMultiScale(gray, 1.3, 5)
                 
-                # Kiểm tra nếu không có khuôn mặt nào
                 if len(faces) == 0 and self.recognized_person is not None:
-                    # Kiểm tra xem đã quá 30 giây chưa
                     current_time = datetime.now()
                     if self.last_recognition_time and \
                        (current_time - self.last_recognition_time).total_seconds() > self.recognition_cooldown:
-                        # Reset về trạng thái chờ
                         self.reset_to_waiting_state()
                 
                 if frame_count % 10 == 0 and len(self.embeddings) > 0:
@@ -398,19 +429,15 @@ class AttendanceRecognitionUI:
                                 if identity != "Unknown" and confidence > 0.6:
                                     current_time = datetime.now()
                                     
-                                    # Nếu đã có người được nhận diện và vẫn trong thời gian cooldown
                                     if self.recognized_person is not None:
                                         if identity == self.recognized_person['name']:
-                                            # Cùng người, chỉ cập nhật status
                                             self.update_recognized_status()
                                         else:
-                                            # Người khác, kiểm tra cooldown
                                             if (self.last_recognition_time is None or 
                                                 (current_time - self.last_recognition_time).total_seconds() > self.recognition_cooldown):
                                                 self.update_student_info(identity, confidence, face_img)
                                                 self.last_recognition_time = current_time
                                     else:
-                                        # Chưa có ai được nhận diện
                                         self.update_student_info(identity, confidence, face_img)
                                         self.last_recognition_time = current_time
                     
@@ -500,36 +527,27 @@ class AttendanceRecognitionUI:
             person = next((p for p in persons if p['full_name'] == identity), None)
             
             if person:
-                # Lưu người đã nhận diện
                 self.recognized_person = {
                     'name': identity,
                     'person_id': person['id']
                 }
                 
-                # Icon check màu xanh
                 self.status_icon_label.config(text="✓", fg='#27ae60')
-                
-                # Cập nhật tên
                 self.name_label.config(text=identity, fg='#27ae60')
                 
-                # Cập nhật Mã nhân viên
                 emp_id = person.get('employee_id') or 'Chưa cập nhật'
                 self.id_label.config(text=f"Mã: {emp_id}")
                 
-                # Cập nhật Phòng ban
                 dept = person.get('department') or 'Chưa cập nhật'
                 self.dept_label.config(text=f"Phòng: {dept}")
                 
-                # Cập nhật Confidence
                 self.conf_label.config(text=f"Độ chính xác: {confidence*100:.1f}%")
                 
-                # Hiển thị thông báo xác nhận
                 self.status_label.config(
                     text=f"✓ Đã xác nhận nhận diện thành công!",
                     fg='#27ae60'
                 )
                 
-                # Log attendance
                 self.db.add_recognition_log(
                     person_id=person['id'],
                     identified_name=identity,

@@ -4,9 +4,10 @@ from PIL import Image, ImageTk
 import cv2
 import os
 import threading
+from scrollable_dialog_helper import ScrollableFrame, create_custom_scrollbar_style, bind_mousewheel_to_widget
 
 class ManagePersonsDialog:
-    """Dialog quản lý đối tượng - Cải thiện với scrollbar"""
+    """Dialog quản lý đối tượng - CẢI THIỆN SCROLLBAR VÀ CON LĂN CHUỘT"""
     def __init__(self, parent, face_service, db, main_app=None):
         self.parent = parent
         self.face_service = face_service
@@ -25,18 +26,8 @@ class ManagePersonsDialog:
         y = parent.winfo_y() + (parent.winfo_height() // 2) - 350
         self.dialog.geometry(f"1000x700+{x}+{y}")
         
-        # Style cho scrollbar
-        style = ttk.Style()
-        style.theme_use('clam')
-        style.configure("Custom.Vertical.TScrollbar", 
-                       gripcount=0,
-                       background="#7c5ceb",
-                       darkcolor="#5940c9",
-                       lightcolor="#9b7ef5",
-                       troughcolor="#f0f0f0",
-                       bordercolor="#7c5ceb",
-                       arrowcolor="white",
-                       width=12)
+        # Tạo custom scrollbar style
+        create_custom_scrollbar_style()
         
         self.selected_person = None
         self.setup_ui()
@@ -55,7 +46,7 @@ class ManagePersonsDialog:
         main_frame = tk.Frame(self.dialog, bg='#f5f5f5')
         main_frame.pack(fill='both', expand=True, padx=20, pady=20)
         
-        # LEFT - List
+        # LEFT - List với scrollbar
         left_panel = tk.Frame(main_frame, bg='white', width=400)
         left_panel.pack(side='left', fill='y', padx=(0, 10))
         left_panel.pack_propagate(False)
@@ -69,16 +60,22 @@ class ManagePersonsDialog:
         
         self.search_var = tk.StringVar()
         self.search_var.trace('w', lambda *args: self.load_persons())
-        search_entry = tk.Entry(search_frame, textvariable=self.search_var, 
-                               font=("Arial", 11), relief='solid', bg='#f8f9fa', 
-                               bd=1, highlightthickness=0)
-        search_entry.pack(fill='x', ipady=8)
+        
+        search_container = tk.Frame(search_frame, bg='#f8f9fa', 
+                                   highlightbackground='#e8e8e8',
+                                   highlightthickness=1)
+        search_container.pack(fill='x')
+        
+        search_entry = tk.Entry(search_container, textvariable=self.search_var, 
+                               font=("Arial", 11), relief='flat', bg='#f8f9fa', 
+                               bd=0, highlightthickness=0)
+        search_entry.pack(fill='x', ipady=8, padx=5)
         
         # List frame với scrollbar
         list_container = tk.Frame(left_panel, bg='white')
         list_container.pack(fill='both', expand=True, padx=15, pady=(0, 15))
         
-        # Scrollbar
+        # Scrollbar với custom style
         scrollbar = ttk.Scrollbar(list_container, style="Custom.Vertical.TScrollbar")
         scrollbar.pack(side='right', fill='y')
         
@@ -86,23 +83,25 @@ class ManagePersonsDialog:
         self.listbox = tk.Listbox(list_container, font=("Arial", 11), 
                                  bg='#f8f9fa', selectbackground='#7c5ceb',
                                  selectforeground='white',
-                                 yscrollcommand=scrollbar.set, relief='solid', 
-                                 bd=1, highlightthickness=0,
+                                 yscrollcommand=scrollbar.set, relief='flat', 
+                                 bd=0, highlightthickness=0,
                                  activestyle='none')
         self.listbox.pack(fill='both', expand=True)
         self.listbox.bind('<<ListboxSelect>>', self.on_select_person)
         scrollbar.config(command=self.listbox.yview)
         
-        # Mouse wheel support
-        def _on_mousewheel(event):
+        # Mouse wheel support - CẢI THIỆN
+        def _on_listbox_mousewheel(event):
             self.listbox.yview_scroll(int(-1*(event.delta/120)), "units")
-        self.listbox.bind("<MouseWheel>", _on_mousewheel)
+        
+        self.listbox.bind("<MouseWheel>", _on_listbox_mousewheel)
+        list_container.bind("<MouseWheel>", _on_listbox_mousewheel)
         
         # RIGHT - Details với scrollbar
         right_panel_container = tk.Frame(main_frame, bg='white')
         right_panel_container.pack(side='right', fill='both', expand=True)
         
-        # Details header
+        # Details header (Fixed)
         details_header = tk.Frame(right_panel_container, bg='#7c5ceb', height=60)
         details_header.pack(fill='x')
         details_header.pack_propagate(False)
@@ -111,37 +110,17 @@ class ManagePersonsDialog:
                                      font=("Arial", 14, "bold"), bg='#7c5ceb', fg='white')
         self.details_title.pack(pady=18)
         
-        # Scrollable details content
+        # Scrollable details content - SỬ DỤNG ScrollableFrame
         details_scroll_container = tk.Frame(right_panel_container, bg='white')
         details_scroll_container.pack(fill='both', expand=True)
         
-        canvas = tk.Canvas(details_scroll_container, bg='white', 
-                          highlightthickness=0, bd=0)
-        details_scrollbar = ttk.Scrollbar(details_scroll_container, orient="vertical", 
-                                         command=canvas.yview,
-                                         style="Custom.Vertical.TScrollbar")
+        # Sử dụng ScrollableFrame helper
+        self.details_scrollable = ScrollableFrame(details_scroll_container, bg='white')
+        self.details_scrollable.pack(fill='both', expand=True)
         
-        self.details_frame = tk.Frame(canvas, bg='white')
-        self.details_frame.bind(
-            "<Configure>",
-            lambda e: canvas.configure(scrollregion=canvas.bbox("all"))
-        )
+        self.details_frame = self.details_scrollable.scrollable_frame
         
-        canvas_frame = canvas.create_window((0, 0), window=self.details_frame, 
-                                           anchor="nw", width=530)
-        canvas.configure(yscrollcommand=details_scrollbar.set)
-        
-        # Pack scrollbar and canvas
-        details_scrollbar.pack(side="right", fill="y")
-        canvas.pack(side="left", fill="both", expand=True)
-        
-        # Mouse wheel for details
-        def _on_details_mousewheel(event):
-            canvas.yview_scroll(int(-1*(event.delta/120)), "units")
-        canvas.bind("<MouseWheel>", _on_details_mousewheel)
-        self.details_frame.bind("<MouseWheel>", _on_details_mousewheel)
-        
-        # Buttons frame (fixed at bottom)
+        # Buttons frame (Fixed at bottom)
         buttons_frame = tk.Frame(right_panel_container, bg='white', height=70)
         buttons_frame.pack(fill='x', side='bottom')
         buttons_frame.pack_propagate(False)
@@ -285,6 +264,12 @@ class ManagePersonsDialog:
             tk.Label(label_frame, text=str(value), font=("Arial", 10), 
                     bg='#f8f9fa', fg='#2c3e50', anchor='w', 
                     wraplength=350).pack(side='left', fill='x', expand=True, padx=(10, 0))
+        
+        # Padding bottom cho scrolling
+        tk.Frame(content, bg='white', height=20).pack()
+        
+        # Bind mouse wheel cho details mới
+        self.details_scrollable.bind_all_mousewheel()
     
     def edit_person(self):
         """Sửa thông tin người"""
@@ -343,5 +328,4 @@ class ManagePersonsDialog:
         """Cập nhật main app sau khi xóa"""
         if self.main_app:
             total_persons = len(self.db.get_all_persons())
-            self.main_app.counter_label.config(text=str(total_persons))
             self.main_app.need_reload_embeddings = True

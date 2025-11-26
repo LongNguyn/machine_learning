@@ -1,8 +1,9 @@
 import tkinter as tk
 from tkinter import messagebox
+from scrollable_dialog_helper import ScrollableFrame, create_custom_scrollbar_style
 
 class EditPersonDialog:
-    """Dialog sửa thông tin người"""
+    """Dialog sửa thông tin người - CÓ SCROLLBAR VÀ HỖ TRỢ CON LĂN CHUỘT"""
     def __init__(self, parent, person, db, manage_dialog):
         self.parent = parent
         self.person = person
@@ -11,7 +12,7 @@ class EditPersonDialog:
         
         self.dialog = tk.Toplevel(parent)
         self.dialog.title("Sửa thông tin")
-        self.dialog.geometry("500x600")
+        self.dialog.geometry("500x650")
         self.dialog.configure(bg='#f5f5f5')
         self.dialog.transient(parent)
         self.dialog.grab_set()
@@ -19,13 +20,16 @@ class EditPersonDialog:
         # Center
         self.dialog.update_idletasks()
         x = parent.winfo_x() + (parent.winfo_width() // 2) - 250
-        y = parent.winfo_y() + (parent.winfo_height() // 2) - 300
-        self.dialog.geometry(f"500x600+{x}+{y}")
+        y = parent.winfo_y() + (parent.winfo_height() // 2) - 325
+        self.dialog.geometry(f"500x650+{x}+{y}")
+        
+        # Tạo custom scrollbar style
+        create_custom_scrollbar_style()
         
         self.setup_ui()
     
     def setup_ui(self):
-        # Header
+        # Header (Fixed)
         header = tk.Frame(self.dialog, bg='#7c5ceb', height=70)
         header.pack(fill='x')
         header.pack_propagate(False)
@@ -33,11 +37,24 @@ class EditPersonDialog:
         tk.Label(header, text="✏️ SỬA THÔNG TIN", 
                 font=("Arial", 16, "bold"), bg='#7c5ceb', fg='white').pack(pady=20)
         
-        # Form
-        form_frame = tk.Frame(self.dialog, bg='white')
-        form_frame.pack(fill='both', expand=True, padx=30, pady=30)
+        # Scrollable Form Container
+        form_container = tk.Frame(self.dialog, bg='#f5f5f5')
+        form_container.pack(fill='both', expand=True, padx=30, pady=20)
         
-        tk.Label(form_frame, text="THÔNG TIN CÁ NHÂN", 
+        # Tạo scrollable frame
+        self.scrollable = ScrollableFrame(form_container, bg='white')
+        self.scrollable.pack(fill='both', expand=True)
+        
+        form_frame = self.scrollable.scrollable_frame
+        
+        # Padding top
+        tk.Frame(form_frame, bg='white', height=20).pack()
+        
+        # Inner form với padding
+        inner_form = tk.Frame(form_frame, bg='white')
+        inner_form.pack(fill='both', padx=30)
+        
+        tk.Label(inner_form, text="THÔNG TIN CÁ NHÂN", 
                 font=("Arial", 12, "bold"), bg='white', fg='#2c3e50').pack(pady=(0, 20))
         
         # Form fields
@@ -51,11 +68,18 @@ class EditPersonDialog:
         ]
         
         for label, attr in fields:
-            tk.Label(form_frame, text=label, font=("Arial", 10, "bold"), 
+            tk.Label(inner_form, text=label, font=("Arial", 10, "bold"), 
                     bg='white', fg='#555').pack(anchor='w', pady=(0, 5))
-            entry = tk.Entry(form_frame, font=("Arial", 11), relief='solid',
-                           bg='#f8f9fa', bd=1)
-            entry.pack(fill='x', pady=(0, 15), ipady=8)
+            
+            # Container cho entry để có border đẹp
+            entry_container = tk.Frame(inner_form, bg='#f8f9fa', 
+                                       highlightbackground='#e8e8e8',
+                                       highlightthickness=1)
+            entry_container.pack(fill='x', pady=(0, 15))
+            
+            entry = tk.Entry(entry_container, font=("Arial", 11), relief='flat',
+                           bg='#f8f9fa', bd=0, highlightthickness=0)
+            entry.pack(fill='x', ipady=8, padx=5)
             setattr(self, attr, entry)
         
         # Fill data
@@ -67,20 +91,28 @@ class EditPersonDialog:
         self.entry_phone.insert(0, self.person.get('phone') or '')
         
         # Buttons
-        btn_frame = tk.Frame(form_frame, bg='white')
+        btn_frame = tk.Frame(inner_form, bg='white')
         btn_frame.pack(fill='x', pady=(20, 0))
         
         btn_save = tk.Button(btn_frame, text="💾 LƯU", 
                            font=("Arial", 11, "bold"), bg='#27ae60', fg='white',
                            relief='flat', cursor='hand2', command=self.save_changes,
-                           activebackground='#229954')
+                           activebackground='#229954', borderwidth=0,
+                           highlightthickness=0)
         btn_save.pack(side='left', padx=(0, 10), ipadx=20, ipady=10)
         
         btn_cancel = tk.Button(btn_frame, text="Hủy", 
                              font=("Arial", 11), bg='#95a5a6', fg='white',
                              relief='flat', cursor='hand2', command=self.dialog.destroy,
-                             activebackground='#7f8c8d')
+                             activebackground='#7f8c8d', borderwidth=0,
+                             highlightthickness=0)
         btn_cancel.pack(side='left', ipadx=20, ipady=10)
+        
+        # Padding bottom
+        tk.Frame(form_frame, bg='white', height=20).pack()
+        
+        # Bind mouse wheel cho tất cả widgets
+        self.scrollable.bind_all_mousewheel()
     
     def save_changes(self):
         """Lưu thay đổi"""

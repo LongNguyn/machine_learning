@@ -29,11 +29,8 @@ class LoginDialog:
         logo_frame = tk.Frame(self.dialog, bg='#7c5ceb')
         logo_frame.pack(pady=50)
         
-        tk.Label(logo_frame, text="🔒", font=("Arial", 60), bg='#7c5ceb', fg='white').pack()
         tk.Label(logo_frame, text="ĐĂNG NHẬP QUẢN TRỊ", font=("Arial", 20, "bold"), 
                 bg='#7c5ceb', fg='white').pack(pady=15)
-        tk.Label(logo_frame, text="Để quản lý hệ thống", font=("Arial", 11), 
-                bg='#7c5ceb', fg='#e0d4ff').pack()
         
         # Form
         form_frame = tk.Frame(self.dialog, bg='white', padx=40, pady=40)

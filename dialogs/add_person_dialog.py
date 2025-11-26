@@ -1,13 +1,16 @@
 import tkinter as tk
-from tkinter import messagebox
+from tkinter import messagebox, ttk
 from PIL import Image, ImageTk
 import cv2
 import os
 import threading
 from config import APP_CONFIG
 
+# Import ScrollableFrame helper
+from scrollable_dialog_helper import ScrollableFrame, create_custom_scrollbar_style
+
 class AddPersonDialog:
-    """Dialog thêm người mới"""
+    """Dialog thêm người mới - CÓ SCROLLBAR VÀ HỖ TRỢ CON LĂN CHUỘT"""
     def __init__(self, parent, face_service, db, on_success_callback=None):
         self.parent = parent
         self.face_service = face_service
@@ -23,6 +26,9 @@ class AddPersonDialog:
         
         # Xử lý khi đóng dialog
         self.dialog.protocol("WM_DELETE_WINDOW", self.on_close)
+        
+        # Tạo custom scrollbar style
+        create_custom_scrollbar_style()
         
         self.cap = None
         self.is_capturing = False
@@ -51,15 +57,25 @@ class AddPersonDialog:
         main_frame = tk.Frame(self.dialog, bg='#f5f5f5')
         main_frame.pack(fill='both', expand=True, padx=20, pady=20)
         
-        # LEFT - Form
+        # LEFT - Form với Scrollbar
         left_panel = tk.Frame(main_frame, bg='white', width=380)
-        left_panel.pack(side='left', fill='y', padx=(0, 10))
+        left_panel.pack(side='left', fill='both', padx=(0, 10))
         left_panel.pack_propagate(False)
         
-        form_container = tk.Frame(left_panel, bg='white')
-        form_container.pack(fill='both', expand=True, padx=25, pady=25)
+        # Tạo scrollable frame cho form
+        self.form_scrollable = ScrollableFrame(left_panel, bg='white')
+        self.form_scrollable.pack(fill='both', expand=True)
         
-        tk.Label(form_container, text="THÔNG TIN CÁ NHÂN", 
+        form_container = self.form_scrollable.scrollable_frame
+        
+        # Padding top
+        tk.Frame(form_container, bg='white', height=25).pack()
+        
+        # Inner container với padding
+        inner_form = tk.Frame(form_container, bg='white')
+        inner_form.pack(fill='both', expand=True, padx=25)
+        
+        tk.Label(inner_form, text="THÔNG TIN CÁ NHÂN", 
                 font=("Arial", 13, "bold"), bg='white', fg='#2c3e50').pack(pady=(0, 20))
         
         # Form fields
@@ -73,51 +89,77 @@ class AddPersonDialog:
         ]
         
         for label, attr in fields:
-            tk.Label(form_container, text=label, font=("Arial", 10, "bold"), 
+            tk.Label(inner_form, text=label, font=("Arial", 10, "bold"), 
                     bg='white', fg='#555').pack(anchor='w', pady=(0, 5))
-            entry = tk.Entry(form_container, font=("Arial", 11), relief='solid',
+            entry = tk.Entry(inner_form, font=("Arial", 11), relief='solid',
                            bg='#f8f9fa', bd=1)
             entry.pack(fill='x', pady=(0, 15), ipady=8)
             setattr(self, attr, entry)
         
         # Save button
-        btn_save = tk.Button(form_container, text="💾 LƯU THÔNG TIN", 
+        btn_save = tk.Button(inner_form, text="💾 LƯU THÔNG TIN", 
                            font=("Arial", 12, "bold"), bg='#27ae60', fg='white',
                            relief='flat', cursor='hand2', command=self.save_person,
-                           activebackground='#229954')
+                           activebackground='#229954', borderwidth=0)
         btn_save.pack(fill='x', pady=(10, 0), ipady=12)
         
-        # RIGHT - Camera
+        # Padding bottom
+        tk.Frame(form_container, bg='white', height=25).pack()
+        
+        # Bind mouse wheel cho tất cả widgets trong form
+        self.form_scrollable.bind_all_mousewheel()
+        
+        # RIGHT - Camera với Scrollbar
         right_panel = tk.Frame(main_frame, bg='white')
         right_panel.pack(side='right', fill='both', expand=True)
         
-        camera_header = tk.Frame(right_panel, bg='white')
-        camera_header.pack(fill='x', pady=15)
+        # Tạo scrollable frame cho camera panel
+        self.camera_scrollable = ScrollableFrame(right_panel, bg='white')
+        self.camera_scrollable.pack(fill='both', expand=True)
+        
+        camera_content = self.camera_scrollable.scrollable_frame
+        
+        # Padding top
+        tk.Frame(camera_content, bg='white', height=15).pack()
+        
+        camera_header = tk.Frame(camera_content, bg='white')
+        camera_header.pack(fill='x', pady=(0, 10))
         
         tk.Label(camera_header, text="📷 CAMERA CHỤP ẢNH", 
                 font=("Arial", 13, "bold"), bg='white', fg='#2c3e50').pack()
         
-        self.canvas_camera = tk.Canvas(right_panel, bg='black', width=520, height=380)
-        self.canvas_camera.pack(padx=15, pady=10)
+        # Camera canvas
+        camera_frame = tk.Frame(camera_content, bg='white')
+        camera_frame.pack(padx=15, pady=10)
+        
+        self.canvas_camera = tk.Canvas(camera_frame, bg='black', width=520, height=380,
+                                       highlightthickness=0, bd=0)
+        self.canvas_camera.pack()
         
         # Capture button
-        btn_frame = tk.Frame(right_panel, bg='white')
+        btn_frame = tk.Frame(camera_content, bg='white')
         btn_frame.pack(pady=10)
         
         self.btn_capture = tk.Button(btn_frame, text="📸 CHỤP ẢNH", 
                                     font=("Arial", 12, "bold"), bg='#3498db', fg='white',
                                     relief='flat', cursor='hand2', command=self.capture_image,
-                                    activebackground='#2980b9')
+                                    activebackground='#2980b9', borderwidth=0)
         self.btn_capture.pack(ipadx=20, ipady=10)
         
         # Images display
-        self.images_label = tk.Label(right_panel, 
+        self.images_label = tk.Label(camera_content, 
             text=f"Đã chụp: {len(self.captured_images)}/{APP_CONFIG['min_images_per_person']}", 
             font=("Arial", 11, "bold"), bg='white', fg='#555')
         self.images_label.pack(pady=(10, 5))
         
-        self.images_frame = tk.Frame(right_panel, bg='white')
+        self.images_frame = tk.Frame(camera_content, bg='white')
         self.images_frame.pack(fill='x', padx=15, pady=5)
+        
+        # Padding bottom
+        tk.Frame(camera_content, bg='white', height=20).pack()
+        
+        # Bind mouse wheel cho camera panel
+        self.camera_scrollable.bind_all_mousewheel()
     
     def start_camera(self):
         self.is_capturing = True
@@ -262,6 +304,9 @@ class AddPersonDialog:
                 label.pack()
             except Exception as e:
                 print(f"[LỖI] update_images_display: {e}")
+        
+        # Rebind mouse wheel sau khi thêm widgets mới
+        self.camera_scrollable.bind_all_mousewheel()
     
     def save_person(self):
         full_name = self.entry_name.get().strip()
